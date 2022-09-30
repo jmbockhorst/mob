@@ -2,6 +2,7 @@ package main
 
 import (
 	config "github.com/remotemobprogramming/mob/v4/configuration"
+	"github.com/remotemobprogramming/mob/v4/git"
 	"github.com/remotemobprogramming/mob/v4/say"
 	"io"
 	"io/ioutil"
@@ -16,8 +17,8 @@ func squashWip(configuration config.Configuration) {
 	if hasUncommittedChanges() {
 		makeWipCommit(configuration)
 	}
-	currentBaseBranch, currentWipBranch := determineBranches(gitCurrentBranch(), gitBranches(), configuration)
-	mergeBase := silentgit("merge-base", currentWipBranch.String(), currentBaseBranch.remote(configuration).String())
+	currentBaseBranch, currentWipBranch := determineBranches(gitCurrentBranch(), git.GitBranches(), configuration)
+	mergeBase := git.Silentgit("merge-base", currentWipBranch.String(), currentBaseBranch.remote(configuration).String())
 
 	originalGitEditor, originalGitSequenceEditor := getEnvGitEditor()
 	setEnvGitEditor(
@@ -25,16 +26,16 @@ func squashWip(configuration config.Configuration) {
 		mobExecutable()+" squash-wip --git-sequence-editor",
 	)
 	say.Info("rewriting history of '" + currentWipBranch.String() + "': squashing wip commits while keeping manual commits.")
-	git("rebase", "--interactive", "--keep-empty", mergeBase)
+	git.Git("rebase", "--interactive", "--keep-empty", mergeBase)
 	setEnvGitEditor(originalGitEditor, originalGitSequenceEditor)
 	say.Info("resulting history is:")
 	sayLastCommitsWithMessage(currentBaseBranch.remote(configuration).String(), currentWipBranch.String())
 	if lastCommitIsWipCommit(configuration) { // last commit is wip commit
 		say.Info("undoing the final wip commit and staging its changes:")
-		git("reset", "--soft", "HEAD^")
+		git.Git("reset", "--soft", "HEAD^")
 	}
 
-	git("push", "--force", gitHooksOption(configuration))
+	git.Git("push", "--force", gitHooksOption(configuration))
 }
 
 func lastCommitIsWipCommit(configuration config.Configuration) bool {
@@ -42,12 +43,12 @@ func lastCommitIsWipCommit(configuration config.Configuration) bool {
 }
 
 func lastCommitMessage() string {
-	return silentgit("log", "-1", "--pretty=format:%B")
+	return git.Silentgit("log", "-1", "--pretty=format:%B")
 }
 
 func sayLastCommitsWithMessage(currentBaseBranch string, currentWipBranch string) {
 	commitsBaseWipBranch := currentBaseBranch + ".." + currentWipBranch
-	log := silentgit("--no-pager", "log", commitsBaseWipBranch, "--pretty=oneline", "--abbrev-commit")
+	log := git.Silentgit("--no-pager", "log", commitsBaseWipBranch, "--pretty=oneline", "--abbrev-commit")
 	lines := strings.Split(log, "\n")
 	if len(lines) > 10 {
 		say.Info("wip branch '" + currentWipBranch + "' contains " + strconv.Itoa(len(lines)) + " commits. The last 10 were:")
