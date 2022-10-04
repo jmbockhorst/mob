@@ -14,6 +14,24 @@ var (
 	GitPassthroughStderrStdout = false // hack to get git hooks to print to stdout/stderr
 )
 
+func HasLocalBranch(localBranch string) bool {
+	localBranches := GitBranches()
+	say.Debug("Local Branches: " + strings.Join(localBranches, "\n"))
+	say.Debug("Local Branch: " + localBranch)
+
+	for _, branch := range localBranches {
+		if branch == localBranch {
+			return true
+		}
+	}
+	return false
+}
+
+func CurrentBranch() string {
+	// upgrade to branch --show-current when git v2.21 is more widely spread
+	return Silentgit("rev-parse", "--abbrev-ref", "HEAD")
+}
+
 func Fetch(configuration config.Configuration) {
 	Git("fetch", configuration.RemoteName, "--prune")
 }

@@ -716,7 +716,7 @@ func deleteRemoteWipBranch(configuration config.Configuration) {
 	currentBaseBranch, currentWipBranch := determineBranches(gitCurrentBranch(), git.GitBranches(), configuration)
 
 	git.Git("checkout", currentBaseBranch.String())
-	if hasLocalBranch(currentWipBranch.String()) {
+	if git.HasLocalBranch(currentWipBranch.String()) {
 		git.Git("branch", "--delete", "--force", currentWipBranch.String())
 	}
 	if currentWipBranch.hasRemoteBranch(configuration) {
@@ -1186,23 +1186,8 @@ func isMobProgramming(configuration config.Configuration) bool {
 	return currentWipBranch == currentBranch
 }
 
-func hasLocalBranch(localBranch string) bool {
-	localBranches := git.GitBranches()
-	say.Debug("Local Branches: " + strings.Join(localBranches, "\n"))
-	say.Debug("Local Branch: " + localBranch)
-
-	for i := 0; i < len(localBranches); i++ {
-		if localBranches[i] == localBranch {
-			return true
-		}
-	}
-
-	return false
-}
-
 func gitCurrentBranch() Branch {
-	// upgrade to branch --show-current when git v2.21 is more widely spread
-	return newBranch(git.Silentgit("rev-parse", "--abbrev-ref", "HEAD"))
+	return newBranch(git.CurrentBranch())
 }
 
 func showNext(configuration config.Configuration) {
