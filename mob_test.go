@@ -1639,10 +1639,10 @@ func createTestbedIn(t *testing.T, temporaryDirectory string) {
 	createFile(t, "test.txt", "test")
 	createDirectory(t, "subdir")
 	createFileInPath(t, localDirectory+"/subdir", "subdir.txt", "subdir")
-	git("checkout", "-b", "master")
-	git("add", ".")
-	git("commit", "-m", "\"initial import\"")
-	git("push", "--set-upstream", "--all", "origin")
+	git.Git("checkout", "-b", "master")
+	git.Git("add", ".")
+	git.Git("commit", "-m", "\"initial import\"")
+	git.Git("push", "--set-upstream", "--all", "origin")
 
 	for _, name := range [3]string{"localother", "alice", "bob"} {
 		cleanRepository(temporaryDirectory + "/" + name)
@@ -1758,19 +1758,19 @@ func assertMobSessionBranches(t *testing.T, configuration config.Configuration, 
 	if !newBranch(branch).hasRemoteBranch(configuration) {
 		failWithFailure(t, newBranch(branch).remote(configuration).Name, "none")
 	}
-	if !hasLocalBranch(branch) {
+	if !git.HasLocalBranch(branch) {
 		failWithFailure(t, branch, "none")
 	}
 }
 
 func assertLocalBranch(t *testing.T, branch string) {
-	if !hasLocalBranch(branch) {
+	if !git.HasLocalBranch(branch) {
 		failWithFailure(t, branch, "none")
 	}
 }
 
 func assertNoLocalBranch(t *testing.T, branch string) {
-	if hasLocalBranch(branch) {
+	if git.HasLocalBranch(branch) {
 		failWithFailure(t, branch, "none")
 	}
 }
@@ -1779,7 +1779,7 @@ func assertNoMobSessionBranches(t *testing.T, configuration config.Configuration
 	if newBranch(branch).hasRemoteBranch(configuration) {
 		failWithFailure(t, "none", newBranch(branch).remote(configuration).Name)
 	}
-	if hasLocalBranch(branch) {
+	if git.HasLocalBranch(branch) {
 		failWithFailure(t, "none", branch)
 	}
 }
@@ -1836,9 +1836,9 @@ func createRemoteRepository(path string) {
 	}
 	workingDir = path
 	say.Debug("before git init")
-	git("--bare", "init")
+	git.Git("--bare", "init")
 	say.Debug("before symbolic-ref")
-	git("symbolic-ref", "HEAD", "refs/heads/"+branch)
+	git.Git("symbolic-ref", "HEAD", "refs/heads/"+branch)
 	say.Debug("finished")
 }
 
@@ -1852,9 +1852,9 @@ func cloneRepository(path, remoteDirectory string) {
 	}
 	workingDir = path
 	name := basename(path)
-	git("clone", "--origin", "origin", "file://"+remoteDirectory, ".")
-	git("config", "--local", "user.name", name)
-	git("config", "--local", "user.email", name+"@example.com")
+	git.Git("clone", "--origin", "origin", "file://"+remoteDirectory, ".")
+	git.Git("config", "--local", "user.name", name)
+	git.Git("config", "--local", "user.email", name+"@example.com")
 }
 
 func cloneRepositoryWithSymlink(path, gitDirectory, remoteDirectory string) {
