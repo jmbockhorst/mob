@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/remotemobprogramming/mob/v4/branches"
 	config "github.com/remotemobprogramming/mob/v4/configuration"
 	"github.com/remotemobprogramming/mob/v4/git"
 	"github.com/remotemobprogramming/mob/v4/say"
@@ -17,8 +18,8 @@ func squashWip(configuration config.Configuration) {
 	if hasUncommittedChanges() {
 		makeWipCommit(configuration)
 	}
-	currentBaseBranch, currentWipBranch := determineBranches(gitCurrentBranch(), git.GitBranches(), configuration)
-	mergeBase := git.Silentgit("merge-base", currentWipBranch.String(), currentBaseBranch.remote(configuration).String())
+	currentBaseBranch, currentWipBranch := branches.DetermineBranches(branches.CurrentBranch(), git.GitBranches(), configuration)
+	mergeBase := git.Silentgit("merge-base", currentWipBranch.String(), currentBaseBranch.Remote(configuration).String())
 
 	originalGitEditor, originalGitSequenceEditor := getEnvGitEditor()
 	setEnvGitEditor(
@@ -29,13 +30,13 @@ func squashWip(configuration config.Configuration) {
 	git.Git("rebase", "--interactive", "--keep-empty", mergeBase)
 	setEnvGitEditor(originalGitEditor, originalGitSequenceEditor)
 	say.Info("resulting history is:")
-	sayLastCommitsWithMessage(currentBaseBranch.remote(configuration).String(), currentWipBranch.String())
+	sayLastCommitsWithMessage(currentBaseBranch.Remote(configuration).String(), currentWipBranch.String())
 	if lastCommitIsWipCommit(configuration) { // last commit is wip commit
 		say.Info("undoing the final wip commit and staging its changes:")
 		git.Git("reset", "--soft", "HEAD^")
 	}
 
-	git.Git("push", "--force", gitHooksOption(configuration))
+	git.Git("push", "--force", git.GitHooksOption(configuration))
 }
 
 func lastCommitIsWipCommit(configuration config.Configuration) bool {

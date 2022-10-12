@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/remotemobprogramming/mob/v4/branches"
+	"github.com/remotemobprogramming/mob/v4/command"
 	config "github.com/remotemobprogramming/mob/v4/configuration"
 	"github.com/remotemobprogramming/mob/v4/git"
+	"github.com/remotemobprogramming/mob/v4/reset"
 	"github.com/remotemobprogramming/mob/v4/say"
 	"github.com/remotemobprogramming/mob/v4/test"
 	"io/ioutil"
@@ -28,91 +31,6 @@ func TestCurrentCliName(t *testing.T) {
 	equals(t, "mob", currentCliName("mob.exe"))
 	equals(t, "mob", currentCliName("./mob"))
 	equals(t, "mob", currentCliName("folder/mob"))
-}
-
-func TestDetermineBranches(t *testing.T) {
-	configuration := config.GetDefaultConfiguration()
-	configuration.WipBranchQualifierSeparator = "-"
-
-	assertDetermineBranches(t, "master", "", []string{}, "master", "mob-session")
-	assertDetermineBranches(t, "mob-session", "", []string{}, "master", "mob-session")
-	assertDetermineBranches(t, "mob-session", "green", []string{}, "master", "mob-session")
-
-	assertDetermineBranches(t, "master", "green", []string{}, "master", "mob/master-green")
-	assertDetermineBranches(t, "mob/master-green", "", []string{}, "master", "mob/master-green")
-
-	assertDetermineBranches(t, "master", "test-branch", []string{}, "master", "mob/master-test-branch")
-	assertDetermineBranches(t, "mob/master-test-branch", "", []string{}, "master", "mob/master-test-branch")
-
-	assertDetermineBranches(t, "feature1", "", []string{}, "feature1", "mob/feature1")
-	assertDetermineBranches(t, "mob/feature1", "", []string{}, "feature1", "mob/feature1")
-	assertDetermineBranches(t, "mob/feature1-green", "", []string{}, "feature1", "mob/feature1-green")
-	assertDetermineBranches(t, "feature1", "green", []string{}, "feature1", "mob/feature1-green")
-
-	assertDetermineBranches(t, "feature/test", "", []string{"feature/test"}, "feature/test", "mob/feature/test")
-	assertDetermineBranches(t, "mob/feature/test", "", []string{"feature/test", "mob/feature/test"}, "feature/test", "mob/feature/test")
-
-	assertDetermineBranches(t, "feature/test-ch", "", []string{"DPL-2638-update-apis", "DPL-2814-create-project", "feature/test-ch", "fix/smallChanges", "master", "pipeship/pipelineupdate-pipeship-pipeline.yaml"}, "feature/test-ch", "mob/feature/test-ch")
-}
-
-func assertDetermineBranches(t *testing.T, branch string, qualifier string, branches []string, expectedBase string, expectedWip string) {
-	configuration := config.GetDefaultConfiguration()
-	configuration.WipBranchQualifier = qualifier
-	baseBranch, wipBranch := determineBranches(newBranch(branch), branches, configuration)
-	equals(t, newBranch(expectedBase), baseBranch)
-	equals(t, newBranch(expectedWip), wipBranch)
-}
-
-func TestRemoveWipPrefix(t *testing.T) {
-	configuration := config.GetDefaultConfiguration()
-	configuration.WipBranchPrefix = "mob/"
-	equals(t, "master-green", newBranch("mob/master-green").removeWipPrefix(configuration).Name)
-	equals(t, "master-green-blue", newBranch("mob/master-green-blue").removeWipPrefix(configuration).Name)
-	equals(t, "main-branch", newBranch("mob/main-branch").removeWipPrefix(configuration).Name)
-}
-
-func TestRemoveWipBranchQualifier(t *testing.T) {
-	var configuration config.Configuration
-
-	configuration.WipBranchQualifierSeparator = "-"
-	configuration.WipBranchQualifier = "green"
-	equals(t, "master", newBranch("master-green").removeWipQualifier([]string{}, configuration).Name)
-
-	configuration.WipBranchQualifierSeparator = "-"
-	configuration.WipBranchQualifier = "test-branch"
-	equals(t, "master", newBranch("master-test-branch").removeWipQualifier([]string{}, configuration).Name)
-
-	configuration.WipBranchQualifierSeparator = "-"
-	configuration.WipBranchQualifier = "branch"
-	equals(t, "master-test", newBranch("master-test-branch").removeWipQualifier([]string{}, configuration).Name)
-
-	configuration.WipBranchQualifierSeparator = "-"
-	configuration.WipBranchQualifier = "branch"
-	equals(t, "master-test", newBranch("master-test-branch").removeWipQualifier([]string{"master-test"}, configuration).Name)
-
-	configuration.WipBranchQualifierSeparator = "/-/"
-	configuration.WipBranchQualifier = "branch-qualifier"
-	equals(t, "main", newBranch("main/-/branch-qualifier").removeWipQualifier([]string{}, configuration).Name)
-
-	configuration.WipBranchQualifierSeparator = "-"
-	configuration.WipBranchQualifier = "branchqualifier"
-	equals(t, "main/branchqualifier", newBranch("main/branchqualifier").removeWipQualifier([]string{}, configuration).Name)
-
-	configuration.WipBranchQualifierSeparator = ""
-	configuration.WipBranchQualifier = "branchqualifier"
-	equals(t, "main", newBranch("mainbranchqualifier").removeWipQualifier([]string{}, configuration).Name)
-}
-
-func TestRemoveWipBranchQualifierWithoutBranchQualifierSet(t *testing.T) {
-	var configuration config.Configuration
-
-	configuration.WipBranchQualifierSeparator = "-"
-	configuration.WipBranchQualifier = ""
-	equals(t, "main", newBranch("main").removeWipQualifier([]string{}, configuration).Name)
-
-	configuration.WipBranchQualifierSeparator = "-"
-	configuration.WipBranchQualifier = ""
-	equals(t, "master", newBranch("master-test-branch").removeWipQualifier([]string{}, configuration).Name)
 }
 
 func TestVersion(t *testing.T) {
@@ -277,7 +195,7 @@ func TestStartNextWithBranch(t *testing.T) {
 	assertOnBranch(t, "master")
 
 	configuration.WipBranchQualifier = "green"
-	reset(configuration)
+	reset.Reset(configuration)
 	assertNoMobSessionBranches(t, configuration, "mob/master-green")
 }
 
@@ -355,24 +273,6 @@ func TestStartNextWithBranchContainingHyphen(t *testing.T) {
 	next(configuration)
 }
 
-func TestReset(t *testing.T) {
-	output, configuration := setup(t)
-
-	reset(configuration)
-
-	assertOutputContains(t, output, "mob reset --delete-remote-wip-branch")
-}
-
-func TestResetDeleteRemoteWipBranch(t *testing.T) {
-	_, configuration := setup(t)
-	configuration.ResetDeleteRemoteWipBranch = true
-
-	reset(configuration)
-
-	assertOnBranch(t, "master")
-	assertNoMobSessionBranches(t, configuration, "mob-session")
-}
-
 func TestResetCommit(t *testing.T) {
 	output, configuration := setup(t)
 	start(configuration)
@@ -380,7 +280,7 @@ func TestResetCommit(t *testing.T) {
 	next(configuration)
 	assertMobSessionBranches(t, configuration, "mob-session")
 
-	reset(configuration)
+	reset.Reset(configuration)
 
 	assertOutputContains(t, output, "mob reset --delete-remote-wip-branch")
 	assertMobSessionBranches(t, configuration, "mob-session")
@@ -394,7 +294,7 @@ func TestResetDeleteRemoteWipBranchCommit(t *testing.T) {
 	next(configuration)
 	assertMobSessionBranches(t, configuration, "mob-session")
 
-	reset(configuration)
+	reset.Reset(configuration)
 
 	assertOnBranch(t, "master")
 	assertNoMobSessionBranches(t, configuration, "mob-session")
@@ -408,7 +308,7 @@ func TestResetCommitBranch(t *testing.T) {
 	next(configuration)
 	assertMobSessionBranches(t, configuration, "mob/master-green")
 
-	reset(configuration)
+	reset.Reset(configuration)
 
 	assertOutputContains(t, output, "mob reset --delete-remote-wip-branch")
 	assertMobSessionBranches(t, configuration, "mob/master-green")
@@ -423,7 +323,7 @@ func TestResetDeleteRemoteWipBranchCommitBranch(t *testing.T) {
 	next(configuration)
 	assertMobSessionBranches(t, configuration, "mob/master-green")
 
-	reset(configuration)
+	reset.Reset(configuration)
 
 	assertOnBranch(t, "master")
 	assertNoMobSessionBranches(t, configuration, "mob/master-green")
@@ -955,7 +855,7 @@ func TestStartDonePublishingOneManualCommit(t *testing.T) {
 	done(configuration) // without squash (configuration)
 
 	assertOnBranch(t, "master")
-	assertCleanGitStatus(t)
+	test.AssertCleanGitStatus(t)
 	assertCommitsOnBranch(t, 2, "master")
 	assertCommitLogContainsMessage(t, "master", "[manual-commit-1] publish this commit to master")
 	assertCommitsOnBranch(t, 1, "origin/master")
@@ -1033,7 +933,7 @@ func TestStartDoneSquashWipPublishingOneManualCommit(t *testing.T) {
 	done(configuration)
 
 	assertOnBranch(t, "master")
-	assertCleanGitStatus(t)
+	test.AssertCleanGitStatus(t)
 	assertCommitsOnBranch(t, 2, "master")
 	assertCommitLogContainsMessage(t, "master", "[manual-commit-1] publish this commit to master")
 	assertCommitsOnBranch(t, 1, "origin/master")
@@ -1171,7 +1071,7 @@ func TestStartDoneSquashWipOnlyManualCommits(t *testing.T) {
 	done(configuration)
 
 	assertOnBranch(t, "master")
-	assertCleanGitStatus(t)
+	test.AssertCleanGitStatus(t)
 	assertCommitsOnBranch(t, 3, "master")
 	assertCommitLogContainsMessage(t, "master", "[manual-commit-1] publish this commit to master")
 	assertCommitLogContainsMessage(t, "master", "[manual-commit-2] publish this commit to master")
@@ -1430,50 +1330,6 @@ func TestStartAndNextInSubdir(t *testing.T) {
 	assertFileExist(t, "example3.txt")
 }
 
-func TestIsGitIdentifiesGitRepo(t *testing.T) {
-	setup(t)
-	equals(t, true, git.IsGitRepository())
-}
-
-func TestIsGitIdentifiesOutsideOfGitRepo(t *testing.T) {
-	setWorkingDir(tempDir + "/notgit")
-	equals(t, false, git.IsGitRepository())
-}
-
-func TestEmptyGitStatus(t *testing.T) {
-	setup(t)
-
-	status := gitStatus()
-
-	equals(t, 0, len(status))
-	assertCleanGitStatus(t)
-}
-
-func TestGitStatusWithOneFile(t *testing.T) {
-	setup(t)
-	createFile(t, "hello.txt", "contentIrrelevant")
-
-	status := gitStatus()
-
-	equals(t, GitStatus{
-		"hello.txt": "??",
-	}, status)
-}
-
-func TestGitStatusWithManyFiles(t *testing.T) {
-	setup(t)
-	createFile(t, "hello.txt", "contentIrrelevant")
-	createFile(t, "added.txt", "contentIrrelevant")
-	git.Git("add", "added.txt")
-
-	status := gitStatus()
-
-	equals(t, GitStatus{
-		"added.txt": "A",
-		"hello.txt": "??",
-	}, status)
-}
-
 func TestBranchesDoNotDiverge(t *testing.T) {
 	setup(t)
 	createFileAndCommitIt(t, "example.txt", "asdf", "asdf")
@@ -1557,20 +1413,6 @@ func TestAbortTimerIfMobDone(t *testing.T) {
 	assertNoTimerProcess(t)
 }
 
-func gitStatus() GitStatus {
-	shortStatus := git.Silentgit("status", "--short")
-	statusLines := strings.Split(shortStatus, "\n")
-	var statusMap = make(GitStatus)
-	for _, line := range statusLines {
-		if len(line) == 0 {
-			continue
-		}
-		file := strings.Fields(line)
-		statusMap[file[1]] = file[0]
-	}
-	return statusMap
-}
-
 func setup(t *testing.T) (output *string, configuration config.Configuration) {
 	configuration = config.GetDefaultConfiguration()
 	configuration.NextStay = false
@@ -1594,7 +1436,7 @@ func captureOutput(t *testing.T) *string {
 }
 
 func run(t *testing.T, name string, args ...string) *string {
-	commandString, output, err := git.RunCommandSilent(name, args...)
+	commandString, output, err := command.RunCommandSilent(name, args...)
 	if err != nil {
 		fmt.Println(commandString)
 		fmt.Println(output)
@@ -1635,7 +1477,7 @@ func createTestbedIn(t *testing.T, temporaryDirectory string) {
 	cloneRepository(localDirectory, remoteDirectory)
 
 	say.Debug("Populate, initial import and push")
-	workingDir = localDirectory
+	setWorkingDir(localDirectory)
 	createFile(t, "test.txt", "test")
 	createDirectory(t, "subdir")
 	createFileInPath(t, localDirectory+"/subdir", "subdir.txt", "subdir")
@@ -1735,7 +1577,7 @@ func createDirectoryInPath(t *testing.T, path, directory string) (pathToFile str
 }
 
 func assertOnBranch(t *testing.T, branch string) {
-	currentBranch := gitCurrentBranch()
+	currentBranch := branches.CurrentBranch()
 	if currentBranch.Name != branch {
 		failWithFailure(t, "on branch "+branch, "on branch "+currentBranch.String())
 	}
@@ -1755,8 +1597,8 @@ func assertOutputNotContains(t *testing.T, output *string, notContains string) {
 }
 
 func assertMobSessionBranches(t *testing.T, configuration config.Configuration, branch string) {
-	if !newBranch(branch).hasRemoteBranch(configuration) {
-		failWithFailure(t, newBranch(branch).remote(configuration).Name, "none")
+	if !branches.NewBranch(branch).HasRemoteBranch(configuration) {
+		failWithFailure(t, branches.NewBranch(branch).Remote(configuration).Name, "none")
 	}
 	if !git.HasLocalBranch(branch) {
 		failWithFailure(t, branch, "none")
@@ -1776,8 +1618,8 @@ func assertNoLocalBranch(t *testing.T, branch string) {
 }
 
 func assertNoMobSessionBranches(t *testing.T, configuration config.Configuration, branch string) {
-	if newBranch(branch).hasRemoteBranch(configuration) {
-		failWithFailure(t, "none", newBranch(branch).remote(configuration).Name)
+	if branches.NewBranch(branch).HasRemoteBranch(configuration) {
+		failWithFailure(t, "none", branches.NewBranch(branch).Remote(configuration).Name)
 	}
 	if git.HasLocalBranch(branch) {
 		failWithFailure(t, "none", branch)
@@ -1785,16 +1627,7 @@ func assertNoMobSessionBranches(t *testing.T, configuration config.Configuration
 }
 
 func assertGitStatus(t *testing.T, expected map[string]string) {
-	equals(t, expected, gitStatus())
-}
-
-func assertCleanGitStatus(t *testing.T) {
-	status := gitStatus()
-	if len(status) != 0 {
-		_, file, line, _ := runtime.Caller(1)
-		fmt.Printf("\033[31m%s:%d:\n\n\texpected a clean git status, but contained %s\"\n", filepath.Base(file), line, status)
-		t.FailNow()
-	}
+	equals(t, expected, test.GetGitStatus())
 }
 
 func equals(t *testing.T, exp, act interface{}) {
@@ -1834,7 +1667,7 @@ func createRemoteRepository(path string) {
 		say.Error(err.Error())
 		return
 	}
-	workingDir = path
+	setWorkingDir(path)
 	say.Debug("before git init")
 	git.Git("--bare", "init")
 	say.Debug("before symbolic-ref")
@@ -1850,7 +1683,7 @@ func cloneRepository(path, remoteDirectory string) {
 		say.Error(err.Error())
 		return
 	}
-	workingDir = path
+	setWorkingDir(path)
 	name := basename(path)
 	git.Git("clone", "--origin", "origin", "file://"+remoteDirectory, ".")
 	git.Git("config", "--local", "user.name", name)

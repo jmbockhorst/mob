@@ -1,7 +1,8 @@
-package configuration
+package configuration_test
 
 import (
 	"fmt"
+	config "github.com/remotemobprogramming/mob/v4/configuration"
 	"github.com/remotemobprogramming/mob/v4/say"
 	"github.com/remotemobprogramming/mob/v4/test"
 	"os"
@@ -14,15 +15,30 @@ var (
 )
 
 func TestQuote(t *testing.T) {
-	test.Equals(t, "\"mob\"", quote("mob"))
-	test.Equals(t, "\"m\\\"ob\"", quote("m\"ob"))
+	output, _ := test.Setup(t)
+	os.Setenv("MOB_TIMER_ROOM", "mobRoom1234")
+	configuration := config.ReadConfiguration("", "")
+
+	config.Config(configuration)
+
+	test.AssertOutputContains(t, output, "\"mobRoom1234\"")
+}
+
+func TestQuoteWithQuote(t *testing.T) {
+	output, _ := test.Setup(t)
+	os.Setenv("MOB_TIMER_ROOM", "mob\"Room1234")
+	configuration := config.ReadConfiguration("", "")
+
+	config.Config(configuration)
+
+	test.AssertOutputContains(t, output, "\"mob\\\"Room1234\"")
 }
 
 func TestParseArgs(t *testing.T) {
-	configuration := GetDefaultConfiguration()
+	configuration := config.GetDefaultConfiguration()
 	test.Equals(t, configuration.WipBranchQualifier, "")
 
-	command, parameters, configuration := ParseArgs([]string{"mob", "start", "--branch", "green"}, configuration)
+	command, parameters, configuration := config.ParseArgs([]string{"mob", "start", "--branch", "green"}, configuration)
 
 	test.Equals(t, "start", command)
 	test.Equals(t, "", strings.Join(parameters, ""))
@@ -30,9 +46,9 @@ func TestParseArgs(t *testing.T) {
 }
 
 func TestParseArgsStartCreate(t *testing.T) {
-	configuration := GetDefaultConfiguration()
+	configuration := config.GetDefaultConfiguration()
 
-	command, parameters, configuration := ParseArgs([]string{"mob", "start", "--create"}, configuration)
+	command, parameters, configuration := config.ParseArgs([]string{"mob", "start", "--create"}, configuration)
 
 	test.Equals(t, "start", command)
 	test.Equals(t, "", strings.Join(parameters, ""))
@@ -40,32 +56,32 @@ func TestParseArgsStartCreate(t *testing.T) {
 }
 
 func TestParseArgsDoneNoSquash(t *testing.T) {
-	configuration := GetDefaultConfiguration()
-	test.Equals(t, Squash, configuration.DoneSquash)
+	configuration := config.GetDefaultConfiguration()
+	test.Equals(t, config.Squash, configuration.DoneSquash)
 
-	command, parameters, configuration := ParseArgs([]string{"mob", "done", "--no-squash"}, configuration)
+	command, parameters, configuration := config.ParseArgs([]string{"mob", "done", "--no-squash"}, configuration)
 
 	test.Equals(t, "done", command)
 	test.Equals(t, "", strings.Join(parameters, ""))
-	test.Equals(t, NoSquash, configuration.DoneSquash)
+	test.Equals(t, config.NoSquash, configuration.DoneSquash)
 }
 
 func TestParseArgsDoneSquash(t *testing.T) {
-	configuration := GetDefaultConfiguration()
-	configuration.DoneSquash = NoSquash
+	configuration := config.GetDefaultConfiguration()
+	configuration.DoneSquash = config.NoSquash
 
-	command, parameters, configuration := ParseArgs([]string{"mob", "done", "--squash"}, configuration)
+	command, parameters, configuration := config.ParseArgs([]string{"mob", "done", "--squash"}, configuration)
 
 	test.Equals(t, "done", command)
 	test.Equals(t, "", strings.Join(parameters, ""))
-	test.Equals(t, Squash, configuration.DoneSquash)
+	test.Equals(t, config.Squash, configuration.DoneSquash)
 }
 
 func TestParseArgsMessage(t *testing.T) {
-	configuration := GetDefaultConfiguration()
+	configuration := config.GetDefaultConfiguration()
 	test.Equals(t, configuration.WipBranchQualifier, "")
 
-	command, parameters, configuration := ParseArgs([]string{"mob", "next", "--message", "ci-skip"}, configuration)
+	command, parameters, configuration := config.ParseArgs([]string{"mob", "next", "--message", "ci-skip"}, configuration)
 
 	test.Equals(t, "next", command)
 	test.Equals(t, "", strings.Join(parameters, ""))
@@ -85,11 +101,11 @@ func TestMobRemoteNameEnvironmentVariableEmptyString(t *testing.T) {
 }
 
 func TestMobDoneSquashEnvironmentVariable(t *testing.T) {
-	assertMobDoneSquashValue(t, "", Squash)
-	assertMobDoneSquashValue(t, "garbage", Squash)
-	assertMobDoneSquashValue(t, "squash", Squash)
-	assertMobDoneSquashValue(t, "no-squash", NoSquash)
-	assertMobDoneSquashValue(t, "squash-wip", SquashWip)
+	assertMobDoneSquashValue(t, "", config.Squash)
+	assertMobDoneSquashValue(t, "garbage", config.Squash)
+	assertMobDoneSquashValue(t, "squash", config.Squash)
+	assertMobDoneSquashValue(t, "no-squash", config.NoSquash)
+	assertMobDoneSquashValue(t, "squash-wip", config.SquashWip)
 }
 
 func assertMobDoneSquashValue(t *testing.T, value string, expected string) {
@@ -98,12 +114,12 @@ func assertMobDoneSquashValue(t *testing.T, value string, expected string) {
 }
 
 func TestBooleanEnvironmentVariables(t *testing.T) {
-	assertBoolEnvVarParsed(t, "MOB_START_CREATE", false, Configuration.GetMobStartCreateRemoteBranch)
-	assertBoolEnvVarParsed(t, "MOB_NEXT_STAY", true, Configuration.GetMobNextStay)
-	assertBoolEnvVarParsed(t, "MOB_REQUIRE_COMMIT_MESSAGE", false, Configuration.GetRequireCommitMessage)
+	assertBoolEnvVarParsed(t, "MOB_START_CREATE", false, getMobStartCreateRemoteBranch)
+	assertBoolEnvVarParsed(t, "MOB_NEXT_STAY", true, getMobNextStay)
+	assertBoolEnvVarParsed(t, "MOB_REQUIRE_COMMIT_MESSAGE", false, getRequireCommitMessage)
 }
 
-func assertBoolEnvVarParsed(t *testing.T, envVar string, defaultValue bool, actual func(Configuration) bool) {
+func assertBoolEnvVarParsed(t *testing.T, envVar string, defaultValue bool, actual func(config.Configuration) bool) {
 	t.Run(envVar, func(t *testing.T) {
 		assertEnvVarParsed(t, envVar, "", defaultValue, boolToInterface(actual))
 		assertEnvVarParsed(t, envVar, "true", true, boolToInterface(actual))
@@ -112,43 +128,35 @@ func assertBoolEnvVarParsed(t *testing.T, envVar string, defaultValue bool, actu
 	})
 }
 
-func assertEnvVarParsed(t *testing.T, variable string, value string, expected interface{}, actual func(Configuration) interface{}) {
+func assertEnvVarParsed(t *testing.T, variable string, value string, expected interface{}, actual func(config.Configuration) interface{}) {
 	t.Run(fmt.Sprintf("%s=\"%s\"->(expects:%t)", variable, value, expected), func(t *testing.T) {
 		configuration := setEnvVarAndParse(variable, value)
 		test.Equals(t, expected, actual(configuration))
 	})
 }
 
-func setEnvVarAndParse(variable string, value string) Configuration {
+func setEnvVarAndParse(variable string, value string) config.Configuration {
 	os.Setenv(variable, value)
 	defer os.Unsetenv(variable)
 
-	return parseEnvironmentVariables(GetDefaultConfiguration())
+	return config.ReadConfiguration("", "")
 }
 
-func boolToInterface(actual func(Configuration) bool) func(c Configuration) interface{} {
-	return func(c Configuration) interface{} {
+func boolToInterface(actual func(config.Configuration) bool) func(c config.Configuration) interface{} {
+	return func(c config.Configuration) interface{} {
 		return actual(c)
 	}
 }
 
-func (c Configuration) GetMobDoneSquash() string {
-	return c.DoneSquash
-}
-
-func (c Configuration) GetMobStartIncludeUncommittedChanges() bool {
-	return c.StartIncludeUncommittedChanges
-}
-
-func (c Configuration) GetMobStartCreateRemoteBranch() bool {
+var getMobStartCreateRemoteBranch = func(c config.Configuration) bool {
 	return c.StartCreate
 }
 
-func (c Configuration) GetMobNextStay() bool {
+var getMobNextStay = func(c config.Configuration) bool {
 	return c.NextStay
 }
 
-func (c Configuration) GetRequireCommitMessage() bool {
+var getRequireCommitMessage = func(c config.Configuration) bool {
 	return c.RequireCommitMessage
 }
 
@@ -156,15 +164,15 @@ func TestParseRequireCommitMessageEnvVariables(t *testing.T) {
 	os.Unsetenv("MOB_REQUIRE_COMMIT_MESSAGE")
 	defer os.Unsetenv("MOB_REQUIRE_COMMIT_MESSAGE")
 
-	configuration := parseEnvironmentVariables(GetDefaultConfiguration())
+	configuration := config.ReadConfiguration("", "")
 	test.Equals(t, false, configuration.RequireCommitMessage)
 
 	os.Setenv("MOB_REQUIRE_COMMIT_MESSAGE", "false")
-	configuration = parseEnvironmentVariables(GetDefaultConfiguration())
+	configuration = config.ReadConfiguration("", "")
 	test.Equals(t, false, configuration.RequireCommitMessage)
 
 	os.Setenv("MOB_REQUIRE_COMMIT_MESSAGE", "true")
-	configuration = parseEnvironmentVariables(GetDefaultConfiguration())
+	configuration = config.ReadConfiguration("", "")
 	test.Equals(t, true, configuration.RequireCommitMessage)
 }
 
@@ -197,7 +205,7 @@ func TestReadConfigurationFromFileOverrideEverything(t *testing.T) {
 		MOB_TIMER_URL="https://timer.innoq.io/"
 		MOB_STASH_NAME="team-stash-name"
 	`)
-	actualConfiguration := parseUserConfiguration(GetDefaultConfiguration(), tempDir+"/.mob")
+	actualConfiguration := config.ReadConfiguration(tempDir, "")
 	test.Equals(t, "team", actualConfiguration.CliName)
 	test.Equals(t, "gitlab", actualConfiguration.RemoteName)
 	test.Equals(t, "team next", actualConfiguration.WipCommitMessage)
@@ -211,7 +219,7 @@ func TestReadConfigurationFromFileOverrideEverything(t *testing.T) {
 	test.Equals(t, "green", actualConfiguration.WipBranchQualifier)
 	test.Equals(t, "---", actualConfiguration.WipBranchQualifierSeparator)
 	test.Equals(t, "ensemble/", actualConfiguration.WipBranchPrefix)
-	test.Equals(t, NoSquash, actualConfiguration.DoneSquash)
+	test.Equals(t, config.NoSquash, actualConfiguration.DoneSquash)
 	test.Equals(t, "idea %s", actualConfiguration.OpenCommand)
 	test.Equals(t, "123", actualConfiguration.Timer)
 	test.Equals(t, "Room_42", actualConfiguration.TimerRoom)
@@ -222,7 +230,7 @@ func TestReadConfigurationFromFileOverrideEverything(t *testing.T) {
 	test.Equals(t, "team-stash-name", actualConfiguration.StashName)
 
 	test.CreateFile(t, ".mob", "\nMOB_TIMER_ROOM=\"Room\\\"\\\"_42\"\n")
-	actualConfiguration1 := parseUserConfiguration(GetDefaultConfiguration(), tempDir+"/.mob")
+	actualConfiguration1 := config.ReadConfiguration(tempDir, "")
 	test.Equals(t, "Room\"\"_42", actualConfiguration1.TimerRoom)
 }
 
@@ -232,8 +240,8 @@ func TestReadConfigurationFromFileWithNonBooleanQuotedDoneSquashValue(t *testing
 	test.SetWorkingDir(tempDir)
 
 	test.CreateFile(t, ".mob", "\nMOB_DONE_SQUASH=\"squash-wip\"")
-	actualConfiguration := parseUserConfiguration(GetDefaultConfiguration(), tempDir+"/.mob")
-	test.Equals(t, SquashWip, actualConfiguration.DoneSquash)
+	actualConfiguration := config.ReadConfiguration(tempDir, "")
+	test.Equals(t, config.SquashWip, actualConfiguration.DoneSquash)
 }
 
 func TestReadConfigurationFromFileAndSkipBrokenLines(t *testing.T) {
@@ -242,8 +250,8 @@ func TestReadConfigurationFromFileAndSkipBrokenLines(t *testing.T) {
 	test.SetWorkingDir(tempDir)
 
 	test.CreateFile(t, ".mob", "\nMOB_TIMER_ROOM=\"Broken\" \"String\"")
-	actualConfiguration := parseUserConfiguration(GetDefaultConfiguration(), tempDir+"/.mob")
-	test.Equals(t, GetDefaultConfiguration().TimerRoom, actualConfiguration.TimerRoom)
+	actualConfiguration := config.ReadConfiguration(tempDir, "")
+	test.Equals(t, config.GetDefaultConfiguration().TimerRoom, actualConfiguration.TimerRoom)
 }
 
 func TestSkipIfConfigurationDoesNotExist(t *testing.T) {
@@ -251,36 +259,34 @@ func TestSkipIfConfigurationDoesNotExist(t *testing.T) {
 	tempDir = t.TempDir()
 	test.SetWorkingDir(tempDir)
 
-	actualConfiguration := parseUserConfiguration(GetDefaultConfiguration(), tempDir+"/.mob")
-	test.Equals(t, GetDefaultConfiguration(), actualConfiguration)
+	actualConfiguration := config.ReadConfiguration(tempDir, "")
+	test.Equals(t, config.GetDefaultConfiguration(), actualConfiguration)
 }
 
 func TestSetMobDoneSquash(t *testing.T) {
-	configuration := GetDefaultConfiguration()
-	configuration.DoneSquash = Squash
+	os.Setenv("MOB_DONE_SQUASH", "no-squash")
+	configuration := config.ReadConfiguration("", "")
+	test.Equals(t, config.NoSquash, configuration.DoneSquash)
 
-	setMobDoneSquash(&configuration, "", "no-squash")
-	test.Equals(t, NoSquash, configuration.DoneSquash)
+	os.Setenv("MOB_DONE_SQUASH", "squash")
+	configuration = config.ReadConfiguration("", "")
+	test.Equals(t, config.Squash, configuration.DoneSquash)
 
-	setMobDoneSquash(&configuration, "", "squash")
-	test.Equals(t, Squash, configuration.DoneSquash)
-
-	setMobDoneSquash(&configuration, "", "squash-wip")
-	test.Equals(t, SquashWip, configuration.DoneSquash)
+	os.Setenv("MOB_DONE_SQUASH", "squash-wip")
+	configuration = config.ReadConfiguration("", "")
+	test.Equals(t, config.SquashWip, configuration.DoneSquash)
 }
 
 func TestSetMobDoneSquashGarbageValue(t *testing.T) {
-	configuration := GetDefaultConfiguration()
-	configuration.DoneSquash = NoSquash
+	os.Setenv("MOB_DONE_SQUASH", "garbage")
+	configuration := config.ReadConfiguration("", "")
 
-	setMobDoneSquash(&configuration, "", "garbage")
-	test.Equals(t, Squash, configuration.DoneSquash)
+	test.Equals(t, config.Squash, configuration.DoneSquash)
 }
 
 func TestSetMobDoneSquashEmptyStringValue(t *testing.T) {
-	configuration := GetDefaultConfiguration()
-	configuration.DoneSquash = NoSquash
+	os.Setenv("MOB_DONE_SQUASH", "garbage")
+	configuration := config.ReadConfiguration("", "")
 
-	setMobDoneSquash(&configuration, "", "")
-	test.Equals(t, Squash, configuration.DoneSquash)
+	test.Equals(t, config.Squash, configuration.DoneSquash)
 }

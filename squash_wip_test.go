@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/remotemobprogramming/mob/v4/branches"
 	config "github.com/remotemobprogramming/mob/v4/configuration"
 	"github.com/remotemobprogramming/mob/v4/git"
 	"io/ioutil"
@@ -369,7 +370,7 @@ func manualCommit(t *testing.T, configuration config.Configuration, filename str
 }
 
 func commitsOnCurrentBranch(configuration config.Configuration) []string {
-	currentBaseBranch, currentWipBranch := determineBranches(gitCurrentBranch(), git.GitBranches(), configuration)
+	currentBaseBranch, currentWipBranch := branches.DetermineBranches(branches.CurrentBranch(), git.GitBranches(), configuration)
 	commitsBaseWipBranch := currentBaseBranch.String() + ".." + currentWipBranch.String()
 	log := git.Silentgit("--no-pager", "log", commitsBaseWipBranch, "--pretty=format:%s")
 	lines := strings.Split(log, "\n")
@@ -377,7 +378,7 @@ func commitsOnCurrentBranch(configuration config.Configuration) []string {
 }
 
 func commitsOnRemoteBranch(configuration config.Configuration) []string {
-	currentBaseBranch, currentWipBranch := determineBranches(gitCurrentBranch(), git.GitBranches(), configuration)
+	currentBaseBranch, currentWipBranch := branches.DetermineBranches(branches.CurrentBranch(), git.GitBranches(), configuration)
 	commitsBaseWipBranch := currentBaseBranch.String() + ".." + configuration.RemoteName + "/" + currentWipBranch.String()
 	log := git.Silentgit("--no-pager", "log", commitsBaseWipBranch, "--pretty=format:%s")
 	lines := strings.Split(log, "\n")

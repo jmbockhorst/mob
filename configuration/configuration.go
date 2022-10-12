@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"github.com/remotemobprogramming/mob/v4/say"
 	"os"
-	"os/user"
 	"runtime"
 	"strconv"
 	"strings"
@@ -95,13 +94,14 @@ func Config(c Configuration) {
 	say.Say("MOB_TIMER_INSECURE" + "=" + strconv.FormatBool(c.TimerInsecure))
 }
 
-func ReadConfiguration(gitRootDir string) Configuration {
+func ReadConfiguration(homeDir, gitRootDir string) Configuration {
 	configuration := GetDefaultConfiguration()
 	configuration = parseEnvironmentVariables(configuration)
 
-	currentUser, _ := user.Current()
-	userConfigurationPath := currentUser.HomeDir + "/.mob"
-	configuration = parseUserConfiguration(configuration, userConfigurationPath)
+	if homeDir != "" {
+		userConfigurationPath := homeDir + "/.mob"
+		configuration = parseUserConfiguration(configuration, userConfigurationPath)
+	}
 	if gitRootDir != "" {
 		configuration = parseProjectConfiguration(configuration, gitRootDir+"/.mob")
 	}

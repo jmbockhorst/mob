@@ -2,6 +2,7 @@ package git
 
 import (
 	"bufio"
+	"github.com/remotemobprogramming/mob/v4/command"
 	config "github.com/remotemobprogramming/mob/v4/configuration"
 	"github.com/remotemobprogramming/mob/v4/say"
 	"os"
@@ -61,21 +62,16 @@ func GitUserEmail() string {
 }
 
 func IsGitRepository() bool {
-	_, _, err := RunCommandSilent("git", "rev-parse")
+	_, _, err := command.RunCommandSilentIn(WorkingDir, "git", "rev-parse")
 	return err == nil
 }
 
-func RunCommandSilent(name string, args ...string) (string, string, error) {
-	command := exec.Command(name, args...)
-	if len(WorkingDir) > 0 {
-		command.Dir = WorkingDir
+func GitHooksOption(configuration config.Configuration) string {
+	if configuration.GitHooksEnabled {
+		return ""
+	} else {
+		return "--no-verify"
 	}
-	commandString := strings.Join(command.Args, " ")
-	say.Debug("Running command <" + commandString + "> in silent mode, capturing combined output")
-	outputBytes, err := command.CombinedOutput()
-	output := string(outputBytes)
-	say.Debug(output)
-	return commandString, output, err
 }
 
 func runCommand(name string, args ...string) (string, string, error) {
@@ -123,7 +119,7 @@ func runCommand(name string, args ...string) (string, string, error) {
 }
 
 func Silentgit(args ...string) string {
-	commandString, output, err := RunCommandSilent("git", args...)
+	commandString, output, err := command.RunCommandSilentIn(WorkingDir, "git", args...)
 
 	if err != nil {
 		if !IsGitRepository() {
@@ -139,7 +135,7 @@ func Silentgit(args ...string) string {
 }
 
 func Silentgitignorefailure(args ...string) string {
-	_, output, err := RunCommandSilent("git", args...)
+	_, output, err := command.RunCommandSilentIn(WorkingDir, "git", args...)
 
 	if err != nil {
 		return ""
@@ -167,7 +163,7 @@ func Git(args ...string) {
 	if GitPassthroughStderrStdout {
 		commandString, output, err = runCommand("git", args...)
 	} else {
-		commandString, output, err = RunCommandSilent("git", args...)
+		commandString, output, err = command.RunCommandSilentIn(WorkingDir, "git", args...)
 	}
 
 	if err != nil {
@@ -189,7 +185,7 @@ func Gitignorefailure(args ...string) error {
 	if GitPassthroughStderrStdout {
 		commandString, output, err = runCommand("git", args...)
 	} else {
-		commandString, output, err = RunCommandSilent("git", args...)
+		commandString, output, err = command.RunCommandSilentIn(WorkingDir, "git", args...)
 	}
 
 	say.Indented(commandString)
@@ -211,7 +207,7 @@ func Gitignorefailure(args ...string) error {
 }
 
 func DoBranchesDiverge(ancestor string, successor string) bool {
-	_, _, err := RunCommandSilent("git", "merge-base", "--is-ancestor", ancestor, successor)
+	_, _, err := command.RunCommandSilentIn(WorkingDir, "git", "merge-base", "--is-ancestor", ancestor, successor)
 	if err == nil {
 		return false
 	}
@@ -228,7 +224,7 @@ func gitCurrentBranch() string {
 }
 
 func IsGitInstalled() bool {
-	_, _, err := RunCommandSilent("git", "--version")
+	_, _, err := command.RunCommandSilentIn(WorkingDir, "git", "--version")
 	if err != nil {
 		say.Debug("isGitInstalled encountered an error: " + err.Error())
 	}

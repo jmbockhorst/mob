@@ -2,9 +2,12 @@ package test
 
 import (
 	"fmt"
+	"github.com/remotemobprogramming/mob/v4/branches"
+	config "github.com/remotemobprogramming/mob/v4/configuration"
 	"github.com/remotemobprogramming/mob/v4/git"
 	"github.com/remotemobprogramming/mob/v4/say"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -16,7 +19,7 @@ import (
 
 var (
 	workingDir string
-	tempDir    string
+	TempDir    string
 )
 
 const (
@@ -114,4 +117,239 @@ func AwaitBlocking(t *testing.T, pollInterval time.Duration, atMost time.Duratio
 		}
 		time.Sleep(pollInterval)
 	}
+}
+
+type GitStatus = map[string]string
+
+func GetGitStatus() GitStatus {
+	shortStatus := git.Silentgit("status", "--short")
+	statusLines := strings.Split(shortStatus, "\n")
+	var statusMap = make(GitStatus)
+	for _, line := range statusLines {
+		if len(line) == 0 {
+			continue
+		}
+		file := strings.Fields(line)
+		statusMap[file[1]] = file[0]
+	}
+	return statusMap
+}
+
+func AssertCleanGitStatus(t *testing.T) {
+	status := GetGitStatus()
+	if len(status) != 0 {
+		_, file, line, _ := runtime.Caller(1)
+		fmt.Printf("\033[31m%s:%d:\n\n\texpected a clean git status, but contained %s\"\n", filepath.Base(file), line, status)
+		t.FailNow()
+	}
+}
+
+func Setup(t *testing.T) (output *string, configuration config.Configuration) {
+	configuration = config.GetDefaultConfiguration()
+	configuration.NextStay = false
+	output = CaptureOutput(t)
+	createTestbed(t, configuration)
+	AssertOnBranch(t, "master")
+	Equals(t, []string{"master"}, git.GitBranches())
+	Equals(t, []string{"origin/master"}, git.GitRemoteBranches())
+	AssertNoMobSessionBranches(t, configuration, "mob-session")
+	return output, configuration
+}
+
+func createTestbed(t *testing.T, configuration config.Configuration) {
+	SetWorkingDir("")
+	TempDir = t.TempDir()
+	say.Say("Creating testbed in temporary directory " + TempDir)
+	createTestbedIn(t, TempDir)
+	SetWorkingDir(TempDir + "/local")
+	AssertOnBranch(t, "master")
+	AssertNoMobSessionBranches(t, configuration, "mob-session")
+}
+
+func AssertOnBranch(t *testing.T, branch string) {
+	currentBranch := branches.CurrentBranch()
+	if currentBranch.Name != branch {
+		failWithFailure(t, "on branch "+branch, "on branch "+currentBranch.String())
+	}
+}
+
+func AssertNoMobSessionBranches(t *testing.T, configuration config.Configuration, branch string) {
+	if branches.NewBranch(branch).HasRemoteBranch(configuration) {
+		failWithFailure(t, "none", branches.NewBranch(branch).Remote(configuration).Name)
+	}
+	if git.HasLocalBranch(branch) {
+		failWithFailure(t, "none", branch)
+	}
+}
+
+func createTestbedIn(t *testing.T, temporaryDirectory string) {
+	say.Debug("Creating temporary test assets in " + temporaryDirectory)
+	err := os.MkdirAll(temporaryDirectory, 0755)
+	if err != nil {
+		say.Error("Could not create temporary dir " + temporaryDirectory)
+		say.Error(err.Error())
+		return
+	}
+	say.Debug("Create remote repository")
+	remoteDirectory := getRemoteDirectory(temporaryDirectory)
+	cleanRepository(remoteDirectory)
+	createRemoteRepository(remoteDirectory)
+
+	say.Debug("Create first local repository")
+	localDirectory := getLocalDirectory(temporaryDirectory)
+	cleanRepository(localDirectory)
+	cloneRepository(localDirectory, remoteDirectory)
+
+	say.Debug("Populate, initial import and push")
+	SetWorkingDir(localDirectory)
+	createFile(t, "test.txt", "test")
+	createDirectory(t, "subdir")
+	createFileInPath(t, localDirectory+"/subdir", "subdir.txt", "subdir")
+	git.Git("checkout", "-b", "master")
+	git.Git("add", ".")
+	git.Git("commit", "-m", "\"initial import\"")
+	git.Git("push", "--set-upstream", "--all", "origin")
+
+	for _, name := range [3]string{"localother", "alice", "bob"} {
+		cleanRepository(temporaryDirectory + "/" + name)
+		cloneRepository(temporaryDirectory+"/"+name, remoteDirectory)
+		say.Debug("Created local repository " + name)
+	}
+
+	notGitDirectory := getNotGitDirectory(temporaryDirectory)
+	err = os.MkdirAll(notGitDirectory, 0755)
+	if err != nil {
+		say.Error("Count not create directory " + notGitDirectory)
+		say.Error(err.Error())
+		return
+	}
+
+	say.Debug("Creating local repository with .git symlink")
+	symlinkDirectory := getSymlinkDirectory(temporaryDirectory)
+	symlinkGitDirectory := getSymlinkGitDirectory(temporaryDirectory)
+	cleanRepositoryWithSymlink(symlinkDirectory, symlinkGitDirectory)
+	cloneRepositoryWithSymlink(symlinkDirectory, symlinkGitDirectory, remoteDirectory)
+	say.Debug("Done.")
+}
+
+func cleanRepository(path string) {
+	say.Debug("cleanrepository: Delete " + path)
+	err := os.RemoveAll(path)
+	if err != nil {
+		say.Error("Could not remove directory " + path)
+		say.Error(err.Error())
+		return
+	}
+}
+
+func createRemoteRepository(path string) {
+	branch := "master" // fixed to master for now
+	say.Debug("createremoterepository: Creating remote repository " + path)
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		say.Error("Could not create directory " + path)
+		say.Error(err.Error())
+		return
+	}
+	SetWorkingDir(path)
+	say.Debug("before git init")
+	git.Git("--bare", "init")
+	say.Debug("before symbolic-ref")
+	git.Git("symbolic-ref", "HEAD", "refs/heads/"+branch)
+	say.Debug("finished")
+}
+
+func cloneRepository(path, remoteDirectory string) {
+	say.Debug("clonerepository: Cloning remote " + remoteDirectory + " to " + path)
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		say.Error("Could not create directory " + path)
+		say.Error(err.Error())
+		return
+	}
+	SetWorkingDir(path)
+	name := basename(path)
+	git.Git("clone", "--origin", "origin", "file://"+remoteDirectory, ".")
+	git.Git("config", "--local", "user.name", name)
+	git.Git("config", "--local", "user.email", name+"@example.com")
+}
+
+func cloneRepositoryWithSymlink(path, gitDirectory, remoteDirectory string) {
+	cloneRepository(path, remoteDirectory)
+	say.Debug(fmt.Sprintf("clonerepositorywithsymlink: move .git to %s and create symlink to it", gitDirectory))
+	err := os.Rename(filepath.FromSlash(path+"/.git"), gitDirectory)
+	if err != nil {
+		say.Error("Could not move directory " + path + " to " + gitDirectory)
+		say.Error(err.Error())
+		return
+	}
+	err = os.Symlink(gitDirectory, filepath.FromSlash(path+"/.git"))
+	if err != nil {
+		say.Error("Could not create smylink from " + gitDirectory + " to " + path + "/.git")
+		say.Error(err.Error())
+		return
+	}
+}
+
+func cleanRepositoryWithSymlink(path, gitDirectory string) {
+	cleanRepository(path)
+	say.Debug("cleanrepositorywithsymlink: Delete " + gitDirectory)
+	err := os.RemoveAll(gitDirectory)
+	if err != nil {
+		say.Error("Could not remove directory " + gitDirectory)
+		say.Error(err.Error())
+		return
+	}
+}
+
+func basename(path string) string {
+	split := strings.Split(strings.ReplaceAll(path, "\\", "/"), "/")
+	return split[len(split)-1]
+}
+
+func getRemoteDirectory(path string) string {
+	return path + "/remote"
+}
+
+func getLocalDirectory(path string) string {
+	return path + "/local"
+}
+
+func getNotGitDirectory(path string) string {
+	return path + "/notgit"
+}
+
+func getSymlinkGitDirectory(path string) string {
+	return path + "/local-symlink.git"
+}
+
+func getSymlinkDirectory(path string) string {
+	return path + "/local-symlink"
+}
+
+func createFile(t *testing.T, filename string, content string) (pathToFile string) {
+	return createFileInPath(t, workingDir, filename, content)
+}
+
+func createFileInPath(t *testing.T, path, filename, content string) (pathToFile string) {
+	contentAsBytes := []byte(content)
+	pathToFile = path + "/" + filename
+	err := ioutil.WriteFile(pathToFile, contentAsBytes, 0644)
+	if err != nil {
+		failWithFailure(t, "creating file "+filename+" with content "+content, "error")
+	}
+	return
+}
+
+func createDirectory(t *testing.T, directory string) (pathToFile string) {
+	return createDirectoryInPath(t, workingDir, directory)
+}
+
+func createDirectoryInPath(t *testing.T, path, directory string) (pathToFile string) {
+	pathToFile = path + "/" + directory
+	err := os.Mkdir(pathToFile, 0755)
+	if err != nil {
+		failWithFailure(t, "creating directory "+pathToFile, "error")
+	}
+	return
 }
