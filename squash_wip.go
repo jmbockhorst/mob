@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	config "github.com/remotemobprogramming/mob/v4/configuration"
 	"github.com/remotemobprogramming/mob/v4/say"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Replacer func(string) string
@@ -25,7 +27,7 @@ func squashWip(configuration config.Configuration) {
 		mobExecutable()+" squash-wip --git-sequence-editor",
 	)
 	say.Info("rewriting history of '" + currentWipBranch.String() + "': squashing wip commits while keeping manual commits.")
-	git("rebase", "--interactive", "--keep-empty", mergeBase)
+	git("rebase", "--verbose", "--interactive", "--keep-empty", mergeBase)
 	setEnvGitEditor(originalGitEditor, originalGitSequenceEditor)
 	say.Info("resulting history is:")
 	sayLastCommitsWithMessage(currentBaseBranch.remote(configuration).String(), currentWipBranch.String())
@@ -93,11 +95,14 @@ func squashWipGitEditor(fileName string, configuration config.Configuration) {
 // used for non-interactive rebase to squash post-wip-commits
 func squashWipGitSequenceEditor(fileName string, configuration config.Configuration) {
 	replaceFileContents(fileName, func(input string) string {
+
 		return markPostWipCommitsForSquashing(input, configuration)
 	})
 }
 
 func replaceFileContents(fileName string, replacer Replacer) {
+	time.Sleep(2000 * time.Millisecond)
+	fmt.Println("filename: " + fileName)
 	file, _ := os.OpenFile(fileName, os.O_RDWR, 0666)
 	input, err := ioutil.ReadAll(file)
 	if err != nil {

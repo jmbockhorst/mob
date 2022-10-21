@@ -282,8 +282,10 @@ func execute(command string, parameter []string, configuration config.Configurat
 		moo(configuration)
 	case "sw", "squash-wip":
 		if len(parameter) > 1 && parameter[0] == "--git-editor" {
+			fmt.Println("GIT EDITOR!!!!")
 			squashWipGitEditor(parameter[1], configuration)
 		} else if len(parameter) > 1 && parameter[0] == "--git-sequence-editor" {
+			fmt.Println("GIT SEQUENCE EDITOR!!!!" + parameter[1])
 			squashWipGitSequenceEditor(parameter[1], configuration)
 		}
 	case "version", "--version", "-v":
@@ -1400,6 +1402,7 @@ func runCommandSilent(name string, args ...string) (string, string, error) {
 	if len(workingDir) > 0 {
 		command.Dir = workingDir
 	}
+	fmt.Println("gitWorkingDir:" + workingDir + " name:" + name)
 	commandString := strings.Join(command.Args, " ")
 	say.Debug("Running command <" + commandString + "> in silent mode, capturing combined output")
 	outputBytes, err := command.CombinedOutput()

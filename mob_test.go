@@ -935,6 +935,7 @@ func TestStartDoneSquashWipWithUnpushedCommit(t *testing.T) {
 	createFileAndCommitIt(t, "file1.txt", "owqe", "not a mob session yet")
 
 	setWorkingDir(tempDir + "/alice")
+	fmt.Println("WorkingDir:" + workingDir)
 	start(configuration)
 	createFile(t, "file2.txt", "zcvx")
 	next(configuration)
